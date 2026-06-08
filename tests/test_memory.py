@@ -1,5 +1,6 @@
 import unittest
 
+from src.db.backend.database import Database
 from src.db.backend.memory import Memory
 from src.db.backend.record import Record
 from src.db.backend.table import Table
@@ -79,6 +80,9 @@ class TestTable(unittest.TestCase):
 class TestMemory(unittest.TestCase):
     def setUp(self):
         self.memory = Memory()
+
+    def test_memory_is_database(self):
+        self.assertIsInstance(self.memory, Database)
 
     def test_create_and_select(self):
         self.memory.create_meme(1, "Мем", "Сайт", 2010, "Шутка")
