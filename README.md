@@ -2,13 +2,13 @@
 M60-123БВ-25
 Python
 
-### Запуск проекта
+## Запуск проекта
 
 ```bash
 python -m src.db
 ```
 
-# Запуск тестов
+## Запуск тестов
 
 ```bash
 python -m unittest discover     
