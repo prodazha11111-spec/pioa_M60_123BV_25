@@ -11,10 +11,6 @@ python -m src.db
 # Запуск тестов
 
 ```bash
-python -m unittest discover
-```
-
-```bash
 python -m unittest discover     
 ```
 
