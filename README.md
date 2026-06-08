@@ -2,7 +2,7 @@
 M60-123БВ-25  
 Python
 
-## Быстрый старт
+## Запуск
 
 ```bash
 python -m src.db
