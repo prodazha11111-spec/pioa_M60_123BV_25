@@ -1,6 +1,5 @@
-from .backend.memory import (
-    create_meme, select_memes, update_meme, delete_meme,
-)
+from .backend.memory import Memory
+memory = Memory()
 
 
 def _read_int(prompt: str) -> int:
@@ -34,8 +33,11 @@ def _print_memes(meme_list: list) -> None:
     if not meme_list:
         print("Мемы не найдены.")
         return
-    for m in meme_list:
-        print(f"{m[0]}, {m[1]}, {m[2]}, {m[3]}, {m[4]}")
+    for meme in meme_list:
+        print(
+            f"{meme.id}, {meme.name}, {meme.origin}, "
+            f"{meme.year}, {meme.category}"
+        )
 
 
 def _add_meme() -> None:
@@ -46,7 +48,7 @@ def _add_meme() -> None:
     year = _read_int("Год появления: ")
     category = input("Категория: ").strip()
     try:
-        _print_memes([create_meme(meme_id, name, origin, year, category)])
+        _print_memes([memory.create_meme(meme_id, name, origin, year, category)])
     except ValueError as e:
         print(f"Ошибка: {e}")
 
@@ -59,7 +61,7 @@ def _find_memes() -> None:
     origin = input("Источник: ").strip() or None
     year = _read_optional_int("Год: ")
     category = input("Категория: ").strip() or None
-    _print_memes(select_memes(meme_id, name, origin, year, category))
+    _print_memes(memory.select_memes(meme_id, name, origin, year, category))
 
 
 def _update_meme() -> None:
@@ -71,7 +73,7 @@ def _update_meme() -> None:
     year = _read_optional_int("Новый год: ")
     category = input("Новая категория: ").strip() or None
     try:
-        _print_memes([update_meme(meme_id, name, origin, year, category)])
+        _print_memes([memory.update_meme(meme_id, name, origin, year, category)])
     except ValueError as e:
         print(f"Ошибка: {e}")
 
@@ -80,7 +82,7 @@ def _delete_meme() -> None:
     print("\n  Удаление мема  ")
     meme_id = _read_int("ID мема для удаления: ")
     try:
-        _print_memes([delete_meme(meme_id)])
+        _print_memes([memory.delete_meme(meme_id)])
     except ValueError as e:
         print(f"Ошибка: {e}")
 
@@ -91,10 +93,10 @@ def run() -> None:
         "2": _find_memes,
         "3": _update_meme,
         "4": _delete_meme,
-        "5": lambda: _print_memes(select_memes()),
+        "5": lambda: _print_memes(memory.select_memes()),
     }
     while True:
-        print("\n= База данных мемов (in-memory) =")
+        print("\n= База данных мемов в памяти =")
         print("1. Добавить мем")
         print("2. Найти мемы")
         print("3. Обновить мем")
