@@ -1,4 +1,5 @@
 from .backend.database import Database
+from .backend.error import DatabaseError
 from .backend.file import FileDatabase
 from .backend.memory import Memory
 
@@ -18,7 +19,7 @@ def _select_database() -> Database:
         if choice == "2":
             try:
                 return FileDatabase()
-            except ValueError as error:
+            except DatabaseError as error:
                 print(f"Ошибка: {error}")
                 continue
 
@@ -72,7 +73,7 @@ def _add_meme() -> None:
     category = input("Категория: ").strip()
     try:
         _print_memes([database.create_meme(meme_id, name, origin, year, category)])
-    except ValueError as e:
+    except DatabaseError as e:
         print(f"Ошибка: {e}")
 
 
@@ -97,7 +98,7 @@ def _update_meme() -> None:
     category = input("Новая категория: ").strip() or None
     try:
         _print_memes([database.update_meme(meme_id, name, origin, year, category)])
-    except ValueError as e:
+    except DatabaseError as e:
         print(f"Ошибка: {e}")
 
 
@@ -106,7 +107,7 @@ def _delete_meme() -> None:
     meme_id = _read_int("ID мема для удаления: ")
     try:
         _print_memes([database.delete_meme(meme_id)])
-    except ValueError as e:
+    except DatabaseError as e:
         print(f"Ошибка: {e}")
 
 

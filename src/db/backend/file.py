@@ -1,12 +1,30 @@
 import json
+import os
 from pathlib import Path
 
 from .database import Database
+from .error import (
+    BusinessLogicError,
+    InvalidStorageDataError,
+    StorageIOError,
+)
 from .record import Record
 from .table import Table
 
 
 class FileDatabase(Database):
+    TABLE_NAME = "Мемы"
+    TABLE_FIELDS = {
+        "id": "int",
+        "name": "str",
+        "origin": "str",
+        "year": "int",
+        "category": "str",
+    }
+    DATA_KEYS = {"table"}
+    TABLE_KEYS = {"name", "fields", "records"}
+    RECORD_KEYS = set(TABLE_FIELDS)
+
     def __init__(self, file_path: str = "data/memes.json"):
         self.file_path = Path(file_path)
         self.table = Table()
@@ -24,14 +42,8 @@ class FileDatabase(Database):
     def _empty_data(self) -> dict:
         return {
             "table": {
-                "name": "Мемы",
-                "fields": {
-                    "id": "int",
-                    "name": "str",
-                    "origin": "str",
-                    "year": "int",
-                    "category": "str",
-                },
+                "name": self.TABLE_NAME,
+                "fields": self.TABLE_FIELDS.copy(),
                 "records": [],
             }
         }
@@ -44,21 +56,46 @@ class FileDatabase(Database):
             with self.file_path.open("r", encoding="utf-8") as file:
                 return json.load(file)
         except json.JSONDecodeError as error:
-            raise ValueError("Файл базы данных содержит некорректный JSON.") from error
+            raise InvalidStorageDataError(
+                "Файл базы данных содержит некорректный JSON."
+            ) from error
         except OSError as error:
-            raise ValueError("Не удалось прочитать файл базы данных.") from error
+            raise StorageIOError("Не удалось прочитать файл базы данных.") from error
+
+    @staticmethod
+    def _check_keys(data: dict, expected_keys: set[str], message: str) -> None:
+        if set(data) != expected_keys:
+            raise InvalidStorageDataError(message)
 
     def _get_records_from_json(self, data: dict) -> list:
         if not isinstance(data, dict):
-            raise ValueError("Файл базы данных имеет неверную структуру.")
+            raise InvalidStorageDataError("Файл базы данных имеет неверную структуру.")
+        self._check_keys(data, self.DATA_KEYS, "Файл базы данных имеет неверную структуру.")
 
         table = data.get("table")
         if not isinstance(table, dict):
-            raise ValueError("В файле базы данных не найдена таблица.")
+            raise InvalidStorageDataError("В файле базы данных не найдена таблица.")
+        self._check_keys(
+            table,
+            self.TABLE_KEYS,
+            "В файле базы данных указана неверная структура таблицы.",
+        )
+
+        if table.get("name") != self.TABLE_NAME:
+            raise InvalidStorageDataError(
+                "В файле базы данных указано неверное название таблицы."
+            )
+
+        if table.get("fields") != self.TABLE_FIELDS:
+            raise InvalidStorageDataError(
+                "В файле базы данных указана неверная структура полей таблицы."
+            )
 
         records = table.get("records")
         if not isinstance(records, list):
-            raise ValueError("В файле базы данных неверный список записей.")
+            raise InvalidStorageDataError(
+                "В файле базы данных неверный список записей."
+            )
 
         return records
 
@@ -69,7 +106,14 @@ class FileDatabase(Database):
 
         for record in records:
             if not isinstance(record, dict):
-                raise ValueError("Запись в файле базы данных должна быть объектом.")
+                raise InvalidStorageDataError(
+                    "Запись в файле базы данных должна быть объектом."
+                )
+            self._check_keys(
+                record,
+                self.RECORD_KEYS,
+                "Запись в файле базы данных имеет неверную структуру.",
+            )
 
             try:
                 self.table.create_record(
@@ -80,22 +124,42 @@ class FileDatabase(Database):
                     record["category"],
                 )
             except KeyError as error:
-                raise ValueError("В записи файла базы данных не хватает полей.") from error
-            except TypeError as error:
-                raise ValueError("Запись в файле базы данных имеет неверный тип.") from error
+                raise InvalidStorageDataError(
+                    "В записи файла базы данных не хватает полей."
+                ) from error
+            except (AttributeError, TypeError) as error:
+                raise InvalidStorageDataError(
+                    "Запись в файле базы данных имеет неверный тип."
+                ) from error
+            except BusinessLogicError as error:
+                raise InvalidStorageDataError(
+                    "Запись в файле базы данных содержит недопустимые значения."
+                ) from error
 
-    def _save(self) -> None:
+    def _save_table(self, table: Table) -> None:
         data = self._empty_data()
         data["table"]["records"] = [
-            self._record_to_dict(record) for record in self.table.get_records()
+            self._record_to_dict(record) for record in table.get_records()
         ]
+        temp_path = self.file_path.with_name(f".{self.file_path.name}.tmp")
 
         try:
             self.file_path.parent.mkdir(parents=True, exist_ok=True)
-            with self.file_path.open("w", encoding="utf-8") as file:
-                json.dump(data, file, ensure_ascii=False, indent=2)
-        except OSError as error:
-            raise ValueError("Не удалось сохранить файл базы данных.") from error
+            with temp_path.open("w", encoding="utf-8") as file:
+                json.dump(data, file, ensure_ascii=False, indent=2, allow_nan=False)
+                file.flush()
+                os.fsync(file.fileno())
+            os.replace(temp_path, self.file_path)
+        except (OSError, TypeError, ValueError) as error:
+            if temp_path.exists():
+                try:
+                    temp_path.unlink()
+                except OSError:
+                    pass
+            raise StorageIOError("Не удалось сохранить файл базы данных.") from error
+
+    def _save(self) -> None:
+        self._save_table(self.table)
 
     def create_meme(
         self,
@@ -105,8 +169,10 @@ class FileDatabase(Database):
         year: int,
         category: str,
     ) -> Record:
-        record = self.table.create_record(meme_id, name, origin, year, category)
-        self._save()
+        table = self.table.copy()
+        record = table.create_record(meme_id, name, origin, year, category)
+        self._save_table(table)
+        self.table = table
         return record
 
     def select_memes(
@@ -127,11 +193,15 @@ class FileDatabase(Database):
         year: int | None = None,
         category: str | None = None,
     ) -> Record:
-        record = self.table.update_record(meme_id, name, origin, year, category)
-        self._save()
+        table = self.table.copy()
+        record = table.update_record(meme_id, name, origin, year, category)
+        self._save_table(table)
+        self.table = table
         return record
 
     def delete_meme(self, meme_id: int) -> Record:
-        record = self.table.delete_record(meme_id)
-        self._save()
+        table = self.table.copy()
+        record = table.delete_record(meme_id)
+        self._save_table(table)
+        self.table = table
         return record

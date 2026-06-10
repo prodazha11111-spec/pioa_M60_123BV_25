@@ -1,10 +1,20 @@
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True, slots=True, init=False)
 class Record:
+    id: int
+    name: str
+    origin: str
+    year: int
+    category: str
+
     def __init__(self, record_id: int, name: str, origin: str, year: int, category: str):
-        self.id = record_id
-        self.name = name.strip()
-        self.origin = origin.strip()
-        self.year = year
-        self.category = category.strip()
+        object.__setattr__(self, "id", record_id)
+        object.__setattr__(self, "name", name.strip())
+        object.__setattr__(self, "origin", origin.strip())
+        object.__setattr__(self, "year", year)
+        object.__setattr__(self, "category", category.strip())
 
     def matches(
         self,

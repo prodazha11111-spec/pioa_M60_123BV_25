@@ -4,6 +4,7 @@ import unittest
 from pathlib import Path
 
 from src.db.backend.database import Database
+from src.db.backend.error import InvalidStorageDataError, StorageIOError
 from src.db.backend.file import FileDatabase
 
 
@@ -57,24 +58,119 @@ class TestFileDatabase(unittest.TestCase):
     def test_invalid_json_raises_error(self):
         self.file_path.write_text("{ плохой json", encoding="utf-8")
 
-        with self.assertRaises(ValueError):
+        with self.assertRaises(InvalidStorageDataError):
             FileDatabase(str(self.file_path))
 
     def test_wrong_file_structure_raises_error(self):
         self.file_path.write_text(json.dumps({"table": {"records": {}}}), encoding="utf-8")
 
-        with self.assertRaises(ValueError):
+        with self.assertRaises(InvalidStorageDataError):
+            FileDatabase(str(self.file_path))
+
+    def test_extra_top_level_key_raises_error(self):
+        data = self.database._empty_data()
+        data["extra"] = "value"
+        self.file_path.write_text(json.dumps(data), encoding="utf-8")
+
+        with self.assertRaises(InvalidStorageDataError):
+            FileDatabase(str(self.file_path))
+
+    def test_extra_table_key_raises_error(self):
+        data = self.database._empty_data()
+        data["table"]["extra"] = "value"
+        self.file_path.write_text(json.dumps(data), encoding="utf-8")
+
+        with self.assertRaises(InvalidStorageDataError):
             FileDatabase(str(self.file_path))
 
     def test_missing_record_field_raises_error(self):
-        data = {
-            "table": {
-                "name": "Мемы",
-                "fields": {},
-                "records": [{"id": 1, "name": "Мем"}],
-            }
-        }
+        data = self.database._empty_data()
+        data["table"]["records"] = [{"id": 1, "name": "Мем"}]
         self.file_path.write_text(json.dumps(data), encoding="utf-8")
 
-        with self.assertRaises(ValueError):
+        with self.assertRaises(InvalidStorageDataError):
             FileDatabase(str(self.file_path))
+
+    def test_wrong_table_name_raises_error(self):
+        data = self.database._empty_data()
+        data["table"]["name"] = "Другая таблица"
+        self.file_path.write_text(json.dumps(data), encoding="utf-8")
+
+        with self.assertRaises(InvalidStorageDataError):
+            FileDatabase(str(self.file_path))
+
+    def test_wrong_table_fields_raises_error(self):
+        data = self.database._empty_data()
+        data["table"]["fields"]["year"] = "str"
+        self.file_path.write_text(json.dumps(data), encoding="utf-8")
+
+        with self.assertRaises(InvalidStorageDataError):
+            FileDatabase(str(self.file_path))
+
+    def test_wrong_record_value_type_raises_error(self):
+        data = self.database._empty_data()
+        data["table"]["records"] = [
+            {
+                "id": 1,
+                "name": 123,
+                "origin": "Сайт",
+                "year": 2010,
+                "category": "Шутка",
+            }
+        ]
+        self.file_path.write_text(json.dumps(data), encoding="utf-8")
+
+        with self.assertRaises(InvalidStorageDataError):
+            FileDatabase(str(self.file_path))
+
+    def test_extra_record_key_raises_error(self):
+        data = self.database._empty_data()
+        data["table"]["records"] = [
+            {
+                "id": 1,
+                "name": "Мем",
+                "origin": "Сайт",
+                "year": 2010,
+                "category": "Шутка",
+                "extra": "value",
+            }
+        ]
+        self.file_path.write_text(json.dumps(data), encoding="utf-8")
+
+        with self.assertRaises(InvalidStorageDataError):
+            FileDatabase(str(self.file_path))
+
+    def test_wrong_record_id_and_year_types_raise_error(self):
+        for field, value in (("id", 1.5), ("id", True), ("year", 2020.5)):
+            data = self.database._empty_data()
+            record = {
+                "id": 1,
+                "name": "Мем",
+                "origin": "Сайт",
+                "year": 2010,
+                "category": "Шутка",
+            }
+            record[field] = value
+            data["table"]["records"] = [record]
+            self.file_path.write_text(json.dumps(data), encoding="utf-8")
+
+            with self.assertRaises(InvalidStorageDataError):
+                FileDatabase(str(self.file_path))
+
+    def test_failed_save_keeps_file_and_state_unchanged(self):
+        self.database.create_meme(1, "Кот", "Форум", 2015, "Фото")
+        before_file = json.loads(self.file_path.read_text(encoding="utf-8"))
+        before_records = self.database.select_memes()
+
+        def broken_record_to_dict(_record):
+            return {"bad": object()}
+
+        self.database._record_to_dict = broken_record_to_dict
+
+        with self.assertRaises(StorageIOError):
+            self.database.update_meme(1, name="Котик")
+
+        after_file = json.loads(self.file_path.read_text(encoding="utf-8"))
+
+        self.assertEqual(after_file, before_file)
+        self.assertEqual(self.database.select_memes(), before_records)
