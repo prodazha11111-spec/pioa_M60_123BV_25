@@ -1,10 +1,38 @@
+from dataclasses import dataclass
+
+from .error import (
+    InvalidNameError,
+    InvalidRecordFieldError,
+    InvalidRecordIdError,
+    InvalidYearError,
+)
+
+
+@dataclass(frozen=True, slots=True, init=False)
 class Record:
+    id: int
+    name: str
+    origin: str
+    year: int
+    category: str
+
     def __init__(self, record_id: int, name: str, origin: str, year: int, category: str):
-        self.id = record_id
-        self.name = name.strip()
-        self.origin = origin.strip()
-        self.year = year
-        self.category = category.strip()
+        if type(record_id) is not int:
+            raise InvalidRecordIdError("ID должен быть целым числом.")
+        if not isinstance(name, str):
+            raise InvalidNameError("Название мема должно быть строкой.")
+        if not isinstance(origin, str):
+            raise InvalidRecordFieldError("Источник должен быть строкой.")
+        if type(year) is not int:
+            raise InvalidYearError("Год должен быть целым числом.")
+        if not isinstance(category, str):
+            raise InvalidRecordFieldError("Категория должна быть строкой.")
+
+        object.__setattr__(self, "id", record_id)
+        object.__setattr__(self, "name", name.strip())
+        object.__setattr__(self, "origin", origin.strip())
+        object.__setattr__(self, "year", year)
+        object.__setattr__(self, "category", category.strip())
 
     def matches(
         self,

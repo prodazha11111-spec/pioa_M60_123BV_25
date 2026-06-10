@@ -1,12 +1,10 @@
-from .database import Database
+from abc import ABC, abstractmethod
+
 from .record import Record
-from .table import Table
 
 
-class Memory(Database):
-    def __init__(self):
-        self.table = Table()
-
+class Database(ABC):
+    @abstractmethod
     def create_meme(
         self,
         meme_id: int,
@@ -15,8 +13,9 @@ class Memory(Database):
         year: int,
         category: str,
     ) -> Record:
-        return self.table.create_record(meme_id, name, origin, year, category)
+        raise NotImplementedError
 
+    @abstractmethod
     def select_memes(
         self,
         meme_id: int | None = None,
@@ -25,8 +24,9 @@ class Memory(Database):
         year: int | None = None,
         category: str | None = None,
     ) -> list[Record]:
-        return self.table.select_records(meme_id, name, origin, year, category)
+        raise NotImplementedError
 
+    @abstractmethod
     def update_meme(
         self,
         meme_id: int,
@@ -35,7 +35,8 @@ class Memory(Database):
         year: int | None = None,
         category: str | None = None,
     ) -> Record:
-        return self.table.update_record(meme_id, name, origin, year, category)
+        raise NotImplementedError
 
+    @abstractmethod
     def delete_meme(self, meme_id: int) -> Record:
-        return self.table.delete_record(meme_id)
+        raise NotImplementedError
