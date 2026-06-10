@@ -28,6 +28,22 @@ class TestRecord(unittest.TestCase):
         with self.assertRaises(AttributeError):
             record.name = "Новое имя"
 
+    def test_record_rejects_invalid_types(self):
+        with self.assertRaises(InvalidRecordIdError):
+            Record(2.5, "Кот", "Форум", 2015, "Фото")
+
+        with self.assertRaises(InvalidNameError):
+            Record(2, 123, "Форум", 2015, "Фото")
+
+        with self.assertRaises(InvalidRecordFieldError):
+            Record(2, "Кот", 123, 2015, "Фото")
+
+        with self.assertRaises(InvalidYearError):
+            Record(2, "Кот", "Форум", 2015.5, "Фото")
+
+        with self.assertRaises(InvalidRecordFieldError):
+            Record(2, "Кот", "Форум", 2015, 123)
+
 
 class TestTable(unittest.TestCase):
     def setUp(self):
